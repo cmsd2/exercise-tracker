@@ -1,4 +1,4 @@
-export type Tab = "log" | "history" | "progress" | "garmin";
+export type Tab = "log" | "history" | "calendar" | "progress" | "garmin";
 
 interface TabBarProps {
   activeTab: Tab;
@@ -8,6 +8,7 @@ interface TabBarProps {
 const TABS: { id: Tab; label: string }[] = [
   { id: "log", label: "Log" },
   { id: "history", label: "History" },
+  { id: "calendar", label: "Calendar" },
   { id: "progress", label: "Progress" },
   { id: "garmin", label: "Garmin" },
 ];

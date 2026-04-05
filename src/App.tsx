@@ -3,6 +3,7 @@ import { TabBar, Tab } from "./components/TabBar";
 import { LogActivityView } from "./components/LogActivity/LogActivityView";
 import { HistoryView } from "./components/History/HistoryView";
 import { ProgressView } from "./components/Progress/ProgressView";
+import { CalendarView } from "./components/Calendar/CalendarView";
 import { GarminSyncView } from "./components/Garmin/GarminSyncView";
 import "./styles/global.css";
 
@@ -17,6 +18,7 @@ function App() {
       <main className="app-main">
         {activeTab === "log" && <LogActivityView />}
         {activeTab === "history" && <HistoryView />}
+        {activeTab === "calendar" && <CalendarView />}
         {activeTab === "progress" && <ProgressView />}
         {activeTab === "garmin" && <GarminSyncView />}
       </main>
