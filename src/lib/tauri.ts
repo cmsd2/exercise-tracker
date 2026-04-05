@@ -185,13 +185,14 @@ export async function setPreference(
 // Garmin sync
 
 export interface SyncProgress {
-  kind: "Started" | "Activity" | "Skipped" | "Finished";
+  kind: "Started" | "Activity" | "Skipped" | "Updating" | "Finished";
   total?: number;
   current?: number;
   reason?: string;
   imported?: number;
   skipped?: number;
   errors?: number;
+  updated?: number;
 }
 
 export async function garminStartLogin(): Promise<void> {

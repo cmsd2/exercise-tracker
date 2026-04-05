@@ -204,6 +204,31 @@ export function GarminSyncView() {
                   `Importing ${syncProgress.current}/${syncProgress.total}...`}
                 {syncProgress.kind === "Skipped" &&
                   `Skipped ${syncProgress.current}/${syncProgress.total}: ${syncProgress.reason}`}
+                {syncProgress.kind === "Updating" && (
+                  <div>
+                    <div style={{ marginBottom: "var(--spacing-xs)" }}>
+                      Downloading FIT data {syncProgress.current}/{syncProgress.total}...
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: "var(--color-bg-tertiary)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${((syncProgress.current ?? 0) / (syncProgress.total ?? 1)) * 100}%`,
+                          background: "var(--color-primary)",
+                          borderRadius: 3,
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -216,74 +241,7 @@ export function GarminSyncView() {
               >
                 Import Complete
               </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "var(--spacing-md)",
-                  textAlign: "center",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xl)",
-                      fontWeight: 600,
-                      color: "var(--color-primary)",
-                    }}
-                  >
-                    {lastSyncResult.imported ?? 0}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xs)",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    imported
-                  </div>
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xl)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {lastSyncResult.skipped ?? 0}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xs)",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    skipped
-                  </div>
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xl)",
-                      fontWeight: 600,
-                      color:
-                        (lastSyncResult.errors ?? 0) > 0
-                          ? "var(--color-danger)"
-                          : undefined,
-                    }}
-                  >
-                    {lastSyncResult.errors ?? 0}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "var(--font-size-xs)",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    errors
-                  </div>
-                </div>
-              </div>
+              <ResultCounters result={lastSyncResult} />
             </div>
           )}
         </>
@@ -309,6 +267,56 @@ export function GarminSyncView() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function ResultCounters({ result }: { result: SyncProgress }) {
+  const items: { value: number; label: string; color?: string }[] = [];
+  const imported = result.imported ?? 0;
+  const skipped = result.skipped ?? 0;
+  const errors = result.errors ?? 0;
+  const updated = result.updated ?? 0;
+
+  if (imported > 0) items.push({ value: imported, label: "imported", color: "var(--color-primary)" });
+  if (updated > 0) items.push({ value: updated, label: "updated", color: "var(--color-primary)" });
+  if (skipped > 0) items.push({ value: skipped, label: "up to date" });
+  if (errors > 0) items.push({ value: errors, label: "errors", color: "var(--color-danger)" });
+
+  if (items.length === 0) {
+    items.push({ value: 0, label: "no activities" });
+  }
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${items.length}, 1fr)`,
+        gap: "var(--spacing-md)",
+        textAlign: "center",
+      }}
+    >
+      {items.map((item) => (
+        <div key={item.label}>
+          <div
+            style={{
+              fontSize: "var(--font-size-xl)",
+              fontWeight: 600,
+              color: item.color,
+            }}
+          >
+            {item.value}
+          </div>
+          <div
+            style={{
+              fontSize: "var(--font-size-xs)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            {item.label}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

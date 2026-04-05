@@ -36,7 +36,8 @@ pub enum SyncProgress {
     Started { total: usize },
     Activity { current: usize, total: usize },
     Skipped { current: usize, total: usize, reason: String },
-    Finished { imported: usize, skipped: usize, errors: usize },
+    Updating { current: usize, total: usize },
+    Finished { imported: usize, skipped: usize, errors: usize, updated: usize },
 }
 
 // ── FIT file parsed structures ──

@@ -19,7 +19,7 @@ const GARMIN_LOGIN_URL: &str = "https://sso.garmin.com/portal/sso/en-US/sign-in?
 const GARMIN_LOGIN_INIT_SCRIPT: &str = "";
 
 const GARMIN_TOKENS_KEY: &str = "garmin_tokens";
-pub const CURRENT_FIT_VERSION: i32 = 1;
+pub const CURRENT_FIT_VERSION: i32 = 2;
 
 async fn get_stored_tokens(state: &State<'_, AppState>) -> Result<Option<GarminTokens>, AppError> {
     let json = state
@@ -443,14 +443,73 @@ pub async fn garmin_sync_activities(
         }
     }
 
+    // Reprocess stale FIT data (activities with fit_version < current)
+    let mut updated = 0usize;
+    let stale = state
+        .service
+        .list_stale_fit_activities(CURRENT_FIT_VERSION)
+        .await
+        .unwrap_or_default();
+    let stale_total = stale.len();
+    if stale_total > 0 {
+        info!(
+            "garmin_sync: updating FIT data for {} activities",
+            stale_total
+        );
+        for (i, (id, source_id)) in stale.iter().enumerate() {
+            let current = i + 1;
+            let _ = app.emit(
+                "garmin-sync-progress",
+                SyncProgress::Updating {
+                    current,
+                    total: stale_total,
+                },
+            );
+            let activity_id: u64 = match source_id.parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let (fit_data, fit_version) = match client.download_fit_file(activity_id).await {
+                Ok(bytes) => match parse_fit_data(&bytes) {
+                    Ok(detail) => match serde_json::to_string(&detail) {
+                        Ok(json) => (Some(json), CURRENT_FIT_VERSION),
+                        Err(e) => {
+                            error!("garmin_sync: FIT update serialize error for {}: {}", activity_id, e);
+                            (None, 0)
+                        }
+                    },
+                    Err(e) => {
+                        error!("garmin_sync: FIT update parse error for {}: {}", activity_id, e);
+                        (None, 0)
+                    }
+                },
+                Err(e) => {
+                    error!("garmin_sync: FIT update download error for {}: {}", activity_id, e);
+                    (None, 0)
+                }
+            };
+            if fit_data.is_some() {
+                if let Ok(()) = state
+                    .service
+                    .update_fit_data(id, fit_data.as_deref(), fit_version)
+                    .await
+                {
+                    updated += 1;
+                }
+            }
+        }
+        info!("garmin_sync: updated {}/{} activities", updated, stale_total);
+    }
+
     let result = SyncProgress::Finished {
         imported,
         skipped,
         errors,
+        updated,
     };
     info!(
-        "garmin_sync_activities: finished — imported={}, skipped={}, errors={}",
-        imported, skipped, errors
+        "garmin_sync_activities: finished — imported={}, skipped={}, errors={}, updated={}",
+        imported, skipped, errors, updated
     );
     let _ = app.emit("garmin-sync-progress", result.clone());
     Ok(result)

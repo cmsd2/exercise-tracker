@@ -1,10 +1,43 @@
+use std::io::{Cursor, Read};
+
 use fitparser::profile::field_types::MesgNum;
 use fitparser::{FitDataField, Value};
+use zip::ZipArchive;
 
 use super::types::{FitDetail, FitDeviceInfo, FitLap, FitRecord, FitSession};
 
+/// Extract raw FIT bytes from a ZIP archive (Garmin returns FIT files inside a ZIP).
+/// If the bytes are not a valid ZIP, returns them as-is (may already be raw FIT).
+fn extract_fit_from_zip(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let cursor = Cursor::new(bytes);
+    let mut archive = match ZipArchive::new(cursor) {
+        Ok(a) => a,
+        Err(_) => return Ok(bytes.to_vec()), // Not a ZIP — assume raw FIT
+    };
+
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("ZIP entry error: {}", e))?;
+        if file
+            .name()
+            .to_ascii_lowercase()
+            .ends_with(".fit")
+        {
+            let mut buf = Vec::with_capacity(file.size() as usize);
+            file.read_to_end(&mut buf)
+                .map_err(|e| format!("ZIP read error: {}", e))?;
+            return Ok(buf);
+        }
+    }
+
+    Err("ZIP archive contains no .fit file".into())
+}
+
 pub fn parse_fit_data(bytes: &[u8]) -> Result<FitDetail, String> {
-    let records = fitparser::from_bytes(bytes).map_err(|e| format!("FIT parse error: {}", e))?;
+    let fit_bytes = extract_fit_from_zip(bytes)?;
+    let records =
+        fitparser::from_bytes(&fit_bytes).map_err(|e| format!("FIT parse error: {}", e))?;
 
     let mut session: Option<FitSession> = None;
     let mut laps: Vec<FitLap> = Vec::new();
@@ -35,6 +68,10 @@ pub fn parse_fit_data(bytes: &[u8]) -> Result<FitDetail, String> {
         records: fit_records,
         device_info,
     })
+}
+
+fn semicircles_to_degrees(sc: f64) -> f64 {
+    sc * (180.0 / 2_147_483_648.0)
 }
 
 fn get_f64(field: &FitDataField) -> Option<f64> {
@@ -230,8 +267,8 @@ fn parse_record(fields: &[FitDataField]) -> FitRecord {
     for field in fields {
         match field.name() {
             "timestamp" => r.timestamp = get_timestamp_string(field),
-            "position_lat" => r.position_lat = get_f64(field),
-            "position_long" => r.position_long = get_f64(field),
+            "position_lat" => r.position_lat = get_f64(field).map(semicircles_to_degrees),
+            "position_long" => r.position_long = get_f64(field).map(semicircles_to_degrees),
             "altitude" => r.altitude = get_f64(field),
             "heart_rate" => r.heart_rate = get_u8(field),
             "cadence" | "fractional_cadence" => {
