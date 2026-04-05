@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            rust-target: aarch64-apple-darwin
+            artifact-name: exercise-tracker-macos-arm64
+            artifact-path: |
+              target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          - os: macos-latest
+            rust-target: x86_64-apple-darwin
+            artifact-name: exercise-tracker-macos-x64
+            artifact-path: |
+              target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          - os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            artifact-name: exercise-tracker-windows-x64
+            artifact-path: |
+              target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+              target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          - os: windows-11-arm
+            rust-target: aarch64-pc-windows-msvc
+            artifact-name: exercise-tracker-windows-arm64
+            artifact-path: |
+              target/aarch64-pc-windows-msvc/release/bundle/msi/*.msi
+              target/aarch64-pc-windows-msvc/release/bundle/nsis/*.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.rust-target }}
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri app
+        run: npx tauri build --target ${{ matrix.rust-target }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
