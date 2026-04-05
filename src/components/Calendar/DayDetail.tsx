@@ -21,9 +21,10 @@ import { RouteMap } from "./RouteMap";
 interface DayDetailProps {
   date: Date;
   activities: Activity[];
+  onViewActivity?: (id: string) => void;
 }
 
-export function DayDetail({ date, activities }: DayDetailProps) {
+export function DayDetail({ date, activities, onViewActivity }: DayDetailProps) {
   const distanceUnit: DistanceUnit = "km";
   const paceUnit: PaceUnit = "min/km";
 
@@ -71,6 +72,7 @@ export function DayDetail({ date, activities }: DayDetailProps) {
               activity={a}
               distanceUnit={distanceUnit}
               paceUnit={paceUnit}
+              onViewActivity={onViewActivity}
             />
           ))}
         </div>
@@ -83,10 +85,12 @@ function ActivityCard({
   activity: a,
   distanceUnit,
   paceUnit,
+  onViewActivity,
 }: {
   activity: Activity;
   distanceUnit: DistanceUnit;
   paceUnit: PaceUnit;
+  onViewActivity?: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
@@ -297,6 +301,23 @@ function ActivityCard({
               <div onClick={(e) => e.stopPropagation()}>
                 <RouteMap coordinates={routeCoords} />
               </div>
+            )}
+
+            {onViewActivity && (
+              <button
+                className="btn btn-secondary"
+                style={{
+                  marginTop: "var(--spacing-sm)",
+                  fontSize: "var(--font-size-xs)",
+                  padding: "var(--spacing-xs) var(--spacing-md)",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewActivity(a.id);
+                }}
+              >
+                View Details &rarr;
+              </button>
             )}
           </div>
         )}

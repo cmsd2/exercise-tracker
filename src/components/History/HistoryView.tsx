@@ -16,8 +16,13 @@ import {
   PaceUnit,
 } from "../../lib/units";
 import { HR_ZONE_LABELS } from "../../lib/tauri";
+import { DeleteButton } from "../DeleteButton";
 
-export function HistoryView() {
+interface HistoryViewProps {
+  onViewActivity?: (id: string) => void;
+}
+
+export function HistoryView({ onViewActivity }: HistoryViewProps) {
   const { activities, filter, fetchActivities, setFilter, deleteActivity } =
     useActivityStore();
   const distanceUnit: DistanceUnit = "km";
@@ -28,9 +33,7 @@ export function HistoryView() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (confirm("Delete this activity?")) {
-      await deleteActivity(id);
-    }
+    await deleteActivity(id);
   }
 
   return (
@@ -112,6 +115,7 @@ export function HistoryView() {
               distanceUnit={distanceUnit}
               paceUnit={paceUnit}
               onDelete={() => handleDelete(activity.id)}
+              onViewActivity={onViewActivity}
             />
           ))}
         </div>
@@ -125,6 +129,7 @@ interface ActivityCardProps {
   distanceUnit: DistanceUnit;
   paceUnit: PaceUnit;
   onDelete: () => void;
+  onViewActivity?: (id: string) => void;
 }
 
 function ActivityCard({
@@ -132,6 +137,7 @@ function ActivityCard({
   distanceUnit,
   paceUnit,
   onDelete,
+  onViewActivity,
 }: ActivityCardProps) {
   const dateStr = new Date(activity.date).toLocaleDateString(undefined, {
     weekday: "short",
@@ -143,7 +149,14 @@ function ActivityCard({
   });
 
   return (
-    <div className="card">
+    <div
+      className="card"
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button")) return;
+        onViewActivity?.(activity.id);
+      }}
+      style={{ cursor: onViewActivity ? "pointer" : undefined }}
+    >
       <div
         style={{
           display: "flex",
@@ -226,13 +239,7 @@ function ActivityCard({
             {dateStr}
           </div>
         </div>
-        <button
-          className="btn btn-danger"
-          style={{ fontSize: "var(--font-size-xs)", padding: "2px 8px" }}
-          onClick={onDelete}
-        >
-          Delete
-        </button>
+        <DeleteButton onDelete={onDelete} />
       </div>
 
       <div

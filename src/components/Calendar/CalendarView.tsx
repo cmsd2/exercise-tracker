@@ -16,7 +16,11 @@ import { DayDetail } from "./DayDetail";
 
 type ViewMode = "week" | "month";
 
-export function CalendarView() {
+interface CalendarViewProps {
+  onViewActivity?: (id: string) => void;
+}
+
+export function CalendarView({ onViewActivity }: CalendarViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -165,7 +169,7 @@ export function CalendarView() {
       )}
 
       {/* Day detail */}
-      <DayDetail date={selectedDate} activities={selectedActivities} />
+      <DayDetail date={selectedDate} activities={selectedActivities} onViewActivity={onViewActivity} />
     </div>
   );
 }
