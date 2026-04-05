@@ -16,6 +16,7 @@ pub fn map_activity_type(
         "indoor_cycling" => Some((ActivityType::Cycle, Some(ActivitySubType::Indoor))),
         "road_biking" => Some((ActivityType::Cycle, Some(ActivitySubType::Road))),
         "mountain_biking" => Some((ActivityType::Cycle, Some(ActivitySubType::Mountain))),
+        "virtual_ride" => Some((ActivityType::Cycle, Some(ActivitySubType::Indoor))),
         "lap_swimming" => Some((ActivityType::Swim, Some(ActivitySubType::Pool))),
         "open_water_swimming" => Some((ActivityType::Swim, Some(ActivitySubType::OpenWater))),
         "indoor_rowing" => Some((ActivityType::Row, Some(ActivitySubType::IndoorRow))),

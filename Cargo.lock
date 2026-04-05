@@ -1046,6 +1046,7 @@ dependencies = [
 name = "exercise-tracker"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "exercise-tracker-core",
  "fitparser",

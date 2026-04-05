@@ -27,3 +27,4 @@ tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 fitparser = "0.7"
+base64 = "0.22"

@@ -9,56 +9,14 @@ use crate::error::AppError;
 use crate::garmin::client::GarminClient;
 use crate::garmin::fit_parser::parse_fit_data;
 use crate::garmin::mapping::{compute_pace, map_activity_type, map_hr_zone};
+use crate::garmin::oauth_exchange;
 use crate::garmin::types::{GarminTokens, SyncProgress};
 use crate::state::AppState;
 
-const GARMIN_LOGIN_URL: &str =
-    "https://sso.garmin.com/sso/signin?service=https://connect.garmin.com/modern";
+const GARMIN_LOGIN_URL: &str = "https://sso.garmin.com/portal/sso/en-US/sign-in?clientId=GarminConnect&service=https%3A%2F%2Fconnect.garmin.com%2Fapp";
 
-const GARMIN_LOGIN_INIT_SCRIPT: &str = r#"
-(function() {
-    // Patch fetch to intercept Bearer tokens
-    const origFetch = window.fetch;
-    window.fetch = function(input, init) {
-        try {
-            const headers = init && init.headers;
-            if (headers) {
-                let authValue = null;
-                if (headers instanceof Headers) {
-                    authValue = headers.get('Authorization');
-                } else if (Array.isArray(headers)) {
-                    const entry = headers.find(([k]) => k.toLowerCase() === 'authorization');
-                    if (entry) authValue = entry[1];
-                } else if (typeof headers === 'object') {
-                    for (const key in headers) {
-                        if (key.toLowerCase() === 'authorization') {
-                            authValue = headers[key];
-                            break;
-                        }
-                    }
-                }
-                if (authValue && authValue.startsWith('Bearer ')) {
-                    const token = authValue.substring(7);
-                    window.location.href = 'http://garmin-auth.localhost/callback?token=' + encodeURIComponent(token);
-                }
-            }
-        } catch(e) {}
-        return origFetch.apply(this, arguments);
-    };
-
-    // Patch XMLHttpRequest to intercept Bearer tokens
-    const origSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
-    XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
-        try {
-            if (name.toLowerCase() === 'authorization' && value.startsWith('Bearer ')) {
-                const token = value.substring(7);
-                window.location.href = 'http://garmin-auth.localhost/callback?token=' + encodeURIComponent(token);
-            }
-        } catch(e) {}
-        return origSetRequestHeader.apply(this, arguments);
-    };
-})();
-"#;
+// The init script is minimal — the real work happens in Rust via on_navigation.
+const GARMIN_LOGIN_INIT_SCRIPT: &str = "";
 
 const GARMIN_TOKENS_KEY: &str = "garmin_tokens";
 pub const CURRENT_FIT_VERSION: i32 = 1;
@@ -112,36 +70,41 @@ pub async fn garmin_start_login(
     ))
     .title("Connect to Garmin")
     .inner_size(480.0, 700.0)
+    .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")
     .initialization_script(GARMIN_LOGIN_INIT_SCRIPT)
     .on_navigation(move |url| {
-        if url.host_str() == Some("garmin-auth.localhost") {
-            info!("garmin_start_login: intercepted auth callback");
-            // Extract token from query string
-            if let Some(token) = url
+        // Intercept the SSO redirect back to connect.garmin.com with a CAS ticket
+        if url.host_str() == Some("connect.garmin.com") {
+            if let Some(ticket) = url
                 .query_pairs()
-                .find(|(k, _)| k == "token")
+                .find(|(k, _)| k == "ticket")
                 .map(|(_, v)| v.into_owned())
             {
-                info!("garmin_start_login: captured Bearer token");
+                info!("garmin_start_login: intercepted CAS ticket");
                 let svc = service.clone();
                 let handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let tokens = GarminTokens {
-                        access_token: token,
-                        refresh_token: None,
-                        expires_at: None,
-                    };
-                    match serde_json::to_string(&tokens) {
-                        Ok(json) => {
-                            if let Err(e) = svc.set_preference(GARMIN_TOKENS_KEY, &json).await {
-                                error!("garmin_start_login: failed to store token: {}", e);
-                            } else {
-                                info!("garmin_start_login: token stored successfully");
-                                let _ = handle.emit("garmin-auth-complete", ());
+                    match oauth_exchange::exchange_ticket(&ticket).await {
+                        Ok(tokens) => {
+                            match serde_json::to_string(&tokens) {
+                                Ok(json) => {
+                                    if let Err(e) =
+                                        svc.set_preference(GARMIN_TOKENS_KEY, &json).await
+                                    {
+                                        error!("garmin_start_login: failed to store tokens: {}", e);
+                                    } else {
+                                        info!("garmin_start_login: tokens stored successfully");
+                                        let _ = handle.emit("garmin-auth-complete", ());
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("garmin_start_login: serialize error: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
-                            error!("garmin_start_login: failed to serialize token: {}", e);
+                            error!("garmin_start_login: OAuth exchange failed: {}", e);
+                            let _ = handle.emit("garmin-auth-error", e);
                         }
                     }
                     // Close the login window
@@ -149,9 +112,9 @@ pub async fn garmin_start_login(
                         let _ = win.close();
                     }
                 });
+                // Block navigation — we consume the ticket in Rust instead
+                return false;
             }
-            // Block navigation to the sentinel URL
-            return false;
         }
         true
     })
